@@ -1,0 +1,13 @@
+/* Inventario / Utilidad module QSS */
+QWidget#inventory_view, QWidget#inventory_view * { color: {TEXT}; }
+QWidget#inventory_view QLabel#title { font-size:20px; font-weight:800; color: {PRIMARY}; }
+QWidget#inventory_view QFrame.card { border-radius:8px; padding:12px; }
+QWidget#inventory_view QGroupBox { font-weight:700; color:{PRIMARY}; border:2px solid {BORDER}; border-radius:10px; }
+QWidget#inventory_view QComboBox#product_cb, QWidget#inventory_view QLineEdit#qty_input { border:2px solid {BORDER}; border-radius:6px; padding:6px; background:{SURFACE}; }
+QWidget#inventory_view QPushButton#use_stock_btn, QWidget#inventory_view QPushButton#calc_btn { background:{BTN_BG}; color:{SURFACE}; border-radius:6px; padding:6px 12px; }
+QWidget#inventory_view QPushButton#use_stock_btn:hover, QWidget#inventory_view QPushButton#calc_btn:hover { background:{BTN_HOVER}; }
+QWidget#inventory_view QFrame#result_frame { background:{SURFACE}; border-radius:8px; border:1px solid {BORDER}; }
+QWidget#inventory_view QLabel#result_title { font-weight:700; color:{TEXT}; }
+QWidget#inventory_view QLabel#res_producto_lbl { font-weight:600; color:{PRIMARY}; }
+QWidget#inventory_view QLabel#res_util_unidad_lbl, QWidget#inventory_view QLabel#res_util_total_lbl { font-weight:700; color:{SUCCESS}; }
+QWidget#inventory_view QFrame#line, QWidget#inventory_view QFrame#line2 { background: {BORDER}; }

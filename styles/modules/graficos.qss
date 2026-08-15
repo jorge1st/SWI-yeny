@@ -1,0 +1,13 @@
+/* Graficos module QSS */
+QDialog#graficos, QWidget#graficos {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {BG}, stop:1 {SURFACE});
+}
+QDialog#graficos QLabel { color: {PRIMARY_DARK}; font-family: 'Segoe UI'; }
+QDialog#graficos QPushButton { background: {BTN_BG}; color: white; border-radius: 8px; padding: 10px 20px; font-weight: 600; }
+QDialog#graficos QPushButton:hover { background: {BTN_HOVER}; }
+QDialog#graficos QComboBox { border: 2px solid {PRIMARY_LIGHT}; border-radius: 8px; padding: 8px; background: {SURFACE}; }
+QDialog#graficos QCheckBox { color: {PRIMARY_DARK}; font-weight: 500; }
+
+QDialog#graficos QFrame#ctrl_panel { background: {SURFACE}; border-radius: 16px; border: 1px solid {BORDER}; }
+QDialog#graficos QFrame#graph_card { background: {SURFACE}; border-radius: 20px; border: 1px solid {BORDER}; }
+QDialog#graficos QLabel#tooltip_label { background: rgba(60, 60, 80, 230); color: white; padding: 10px 14px; border-radius: 10px; font-size: 12px; }

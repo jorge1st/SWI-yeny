@@ -1,0 +1,28 @@
+/* Splash module QSS */
+QDialog#splash {
+    background: qlineargradient(x1:0 y1:0, x2:1 y2:1, stop:0 {SURFACE}, stop:1 {BG});
+}
+
+QDialog#splash QLabel#system_name {
+    color: {PRIMARY_DARK};
+}
+QDialog#splash QLabel#company {
+    color: {TEXT_COLOR};
+}
+QDialog#splash QLabel#rif {
+    color: {TEXT_COLOR};
+}
+QDialog#splash QPushButton#cont_btn {
+    background: {BTN_BG};
+    color: white;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-weight: 800;
+    font-size: 18px;
+}
+QDialog#splash QPushButton#cont_btn:hover {
+    background: {BTN_HOVER};
+}
+QDialog#splash QLabel {
+    color: {TEXT_COLOR};
+}

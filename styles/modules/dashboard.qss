@@ -1,0 +1,85 @@
+/* Dashboard module QSS - uses tokens like {PRIMARY}, {BG}, {TEXT}, {SURFACE} */
+QMainWindow#dashboard {
+    background: {BG};
+    color: {TEXT};
+}
+
+QMainWindow#dashboard QFrame {
+    background: transparent;
+}
+
+QMainWindow#dashboard QLabel {
+    color: {TEXT};
+}
+
+QMainWindow#dashboard QLabel#menu_title, QMainWindow#dashboard QLabel#dept_title {
+    color: {PRIMARY};
+    font-size: 22px;
+    font-weight: 800;
+}
+
+QMainWindow#dashboard QFrame#bcv_box {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {BG}, stop:1 {BG});
+    border-radius: 14px;
+    border: 1px solid {BORDER};
+}
+QMainWindow#dashboard QLabel#bcv_label { color: {PRIMARY}; font-weight:600; font-size:13px; }
+QMainWindow#dashboard QLabel#bcv_value { font-size:18px; font-weight:700; color:{TEXT}; }
+QMainWindow#dashboard QLabel#bcv_time { font-size:11px; color:gray; }
+QMainWindow#dashboard QPushButton {
+    background: transparent;
+    color: {TEXT};
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+QMainWindow#dashboard QPushButton:hover {
+    background: {PRIMARY_LIGHT};
+}
+
+/* sidebar specific (best-effort) */
+QWidget#sidebar, QFrame#sidebar {
+    background: {SIDEBAR};
+    color: {SURFACE};
+}
+
+QWidget#sidebar QPushButton {
+    color: {SURFACE};
+}
+
+/* Menu buttons */
+QMainWindow#dashboard QPushButton[role="menu_button"] {
+    background: {PRIMARY_LIGHT};
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 16px;
+    color: {PRIMARY_DARK};
+    padding: 6px 10px 6px 14px;
+    text-align: left;
+}
+QMainWindow#dashboard QPushButton[role="menu_button"]:hover { background:{PRIMARY_LIGHT}; }
+
+/* Department buttons */
+QMainWindow#dashboard QPushButton[role="dept_button"] {
+    background: {PRIMARY_LIGHT};
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 14px;
+    color: {PRIMARY_DARK};
+    padding: 8px;
+    text-align: center;
+}
+QMainWindow#dashboard QPushButton[role="dept_button"]:hover { background:{PRIMARY_LIGHT}; }
+
+/* Buttons tagged as sidebar role */
+QMainWindow#dashboard QPushButton[role="sidebar"] {
+    background: transparent;
+    color: {SURFACE};
+    text-align: left;
+    padding: 10px;
+    font-size: 15px;
+    font-weight: 600;
+}
+QMainWindow#dashboard QPushButton[role="sidebar"]:hover {
+    background: {PRIMARY_DARK};
+}

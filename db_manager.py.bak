@@ -1,0 +1,189 @@
+import sqlite3
+from sqlite3 import Error
+from datetime import datetime
+
+class DBManager:
+    def __init__(self, db_name="inventory.db"):
+        self.db_name = db_name
+        self.conn = None
+        self.connect()
+        self.create_tables()
+        self._ensure_default_user()
+
+    def connect(self):
+        try:
+            self.conn = sqlite3.connect(self.db_name, timeout=30)
+            self.conn.row_factory = sqlite3.Row
+        except Error as e:
+            print("DB connect error:", e)
+            raise
+
+    def create_tables(self):
+        cur = self.conn.cursor()
+        # productos: codigo unique text, nombre, descripcion, departamento, stock int, costo real, imagen text, fecha_registro text, fecha_caducidad text
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo TEXT UNIQUE,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            departamento TEXT,
+            stock INTEGER DEFAULT 0,
+            costo REAL DEFAULT 0.0,
+            imagen TEXT,
+            fecha_registro TEXT,
+            fecha_caducidad TEXT
+        )
+        """)
+        # movimientos: registro unificado para entradas/salidas
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS movimientos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_producto TEXT,
+            producto_id INTEGER,
+            producto_nombre TEXT,
+            departamento TEXT,
+            tipo TEXT, -- Entrada / Salida
+            cantidad INTEGER,
+            costo REAL,
+            fecha TEXT,
+            imagen TEXT,
+            motivo TEXT,
+            FOREIGN KEY(producto_id) REFERENCES productos(id)
+        )
+        """)
+        # optionally store users or config
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        """)
+        self.conn.commit()
+
+    def _ensure_default_user(self):
+        # ensure a users table exists and create a default admin/admin user
+        cur = self.conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT
+            )
+        """)
+        # insert default admin if not exists
+        cur.execute("SELECT id FROM users WHERE username = ?", ('admin',))
+        if not cur.fetchone():
+            try:
+                cur.execute("INSERT INTO users (username,password) VALUES (?,?)", ('admin','admin'))
+                self.conn.commit()
+            except Exception:
+                pass
+
+    # Generic helpers
+    def fetchall(self, query, params=()):
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        return [dict(r) for r in rows] if rows else []
+
+    def fetchone(self, query, params=()):
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+        r = cur.fetchone()
+        return dict(r) if r else None
+
+    # Product methods
+    def insert_producto(self, codigo, nombre, descripcion, departamento, stock=0, costo=0.0, imagen=None, fecha_caducidad=None):
+        cur = self.conn.cursor()
+        fecha = datetime.now().isoformat(timespec='seconds')
+        try:
+            cur.execute("""INSERT INTO productos (codigo,nombre,descripcion,departamento,stock,costo,imagen,fecha_registro,fecha_caducidad)
+                           VALUES (?,?,?,?,?,?,?,?,?)""",
+                        (codigo, nombre, descripcion, departamento, stock, costo, imagen, fecha, fecha_caducidad))
+            self.conn.commit()
+            return cur.lastrowid
+        except Exception as e:
+            # if codigo unique conflict, try update
+            raise
+
+    def listar_productos(self):
+        return self.fetchall("SELECT id, codigo, nombre, descripcion, departamento, stock, costo, imagen, fecha_registro, fecha_caducidad FROM productos ORDER BY nombre")
+
+    def get_producto_by_codigo(self, codigo):
+        return self.fetchone("SELECT * FROM productos WHERE codigo = ?", (codigo,))
+
+    def update_stock(self, producto_id, delta):
+        cur = self.conn.cursor()
+        cur.execute("UPDATE productos SET stock = stock + ? WHERE id = ?", (delta, producto_id))
+        self.conn.commit()
+
+    def borrar_producto(self, producto_id):
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
+        self.conn.commit()
+
+    # Movements
+    def insert_movimiento(self, tipo, producto_id, cantidad, costo=0.0, imagen=None, motivo=None):
+        # tipo: 'Entrada' or 'Salida'
+        prod = self.fetchone("SELECT id, codigo, nombre, departamento FROM productos WHERE id = ?", (producto_id,))
+        if not prod:
+            raise Exception("Producto no existe")
+        fecha = datetime.now().isoformat(timespec='seconds')
+        cur = self.conn.cursor()
+        cur.execute("""INSERT INTO movimientos (codigo_producto, producto_id, producto_nombre, departamento, tipo, cantidad, costo, fecha, imagen, motivo)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (prod['codigo'], producto_id, prod['nombre'], prod['departamento'], tipo, cantidad, costo, fecha, imagen, motivo))
+        # update product stock
+        if tipo.lower() == 'entrada':
+            cur.execute("UPDATE productos SET stock = stock + ? WHERE id = ?", (cantidad, producto_id))
+        else:
+            cur.execute("UPDATE productos SET stock = stock - ? WHERE id = ?", (cantidad, producto_id))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def listar_movimientos(self, limit=500):
+        return self.fetchall("SELECT id, codigo_producto, producto_id, producto_nombre, departamento, tipo, cantidad, costo, fecha, imagen, motivo FROM movimientos ORDER BY fecha DESC LIMIT ?", (limit,))
+
+    def eliminar_movimiento(self, mov_id):
+        cur = self.conn.cursor()
+        # optional: reverse stock change (not implemented here)
+        cur.execute("DELETE FROM movimientos WHERE id = ?", (mov_id,))
+        self.conn.commit()
+
+    # Totals
+    def get_total_inventario_fisico(self):
+        row = self.fetchone("SELECT SUM(stock) as total_stock FROM productos")
+        return int(row['total_stock']) if row and row['total_stock'] is not None else 0
+
+    def get_total_inventario_valorizado(self):
+        row = self.fetchone("SELECT SUM(stock * costo) as total_val FROM productos")
+        return float(row['total_val']) if row and row['total_val'] is not None else 0.0
+
+    # Reports helpers
+    def reporte_entradas(self, inicio, fin):
+        return self.fetchall("SELECT * FROM movimientos WHERE tipo = 'Entrada' AND date(fecha) BETWEEN date(?) AND date(?) ORDER BY fecha DESC", (inicio, fin))
+
+    def reporte_salidas(self, inicio, fin):
+        return self.fetchall("SELECT * FROM movimientos WHERE tipo = 'Salida' AND date(fecha) BETWEEN date(?) AND date(?) ORDER BY fecha DESC", (inicio, fin))
+
+    def reporte_caducidad(self, inicio, fin):
+        return self.fetchall("SELECT id, nombre as producto, fecha_caducidad FROM productos WHERE fecha_caducidad BETWEEN date(?) AND date(?) ORDER BY fecha_caducidad", (inicio, fin))
+
+
+    def verificar_usuario(self, usuario, clave):
+        """Verifica el usuario contra la tabla users (o devuelve True si admin/admin)."""
+        try:
+            row = self.fetchone("SELECT id FROM users WHERE username = ? AND password = ?", (usuario, clave))
+            if row:
+                return True
+        except Exception:
+            pass
+        # fallback simple check
+        if usuario == 'admin' and clave == 'admin':
+            return True
+        return False
+
+    def listar_caducidad(self):
+        """Lista productos con fecha de caducidad (ordenados por fecha)."""
+        return self.fetchall("SELECT id, codigo, nombre, departamento, fecha_caducidad FROM productos WHERE fecha_caducidad IS NOT NULL ORDER BY fecha_caducidad")

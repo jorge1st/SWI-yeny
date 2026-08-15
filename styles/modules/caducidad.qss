@@ -1,0 +1,10 @@
+/* Caducidad module QSS */
+QDialog#caducidad, QWidget#caducidad {
+    background: {BG};
+    color: {TEXT};
+}
+
+QDialog#caducidad QLabel { color: {PRIMARY}; font-weight:700; }
+QDialog#caducidad QPushButton { background:{BTN_BG}; color:{SURFACE}; border-radius:8px; padding:6px 10px; }
+QDialog#caducidad QPushButton:hover { background:{BTN_HOVER}; }
+QDialog#caducidad QTableWidget { background:{SURFACE}; border:1px solid {BORDER}; }

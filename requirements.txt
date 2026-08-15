@@ -1,0 +1,10 @@
+PyQt5
+qtawesome
+pyqtgraph
+matplotlib
+numpy
+scipy
+reportlab
+requests
+beautifulsoup4
+bcrypt

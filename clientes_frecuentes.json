@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "nombre": "Jorge",
+    "cedula": "30940106",
+    "telefono": "",
+    "direccion": "Delicias",
+    "email": "",
+    "fecha_registro": "2026-02-21T22:28:47.765780",
+    "ultima_visita": "2026-02-21T22:28:47.765801",
+    "compras_count": 0,
+    "total_comprado": 0.0
+  }
+]

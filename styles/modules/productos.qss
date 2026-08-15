@@ -1,0 +1,53 @@
+/* Productos module QSS */
+QDialog#productos {
+}
+
+QDialog#productos QLabel#title {
+    font-size: 18px;
+    font-weight: 700;
+    color: {PRIMARY_DARK};
+}
+
+QDialog#productos QLineEdit, QComboBox, QDateEdit, QDoubleSpinBox {
+    border: 2px solid {BORDER};
+    border-radius: 8px;
+    padding: 6px;
+    background: {SURFACE};
+    font-size: 13px;
+}
+
+QDialog#productos QPushButton#overlay_btn {
+    background-color: {BTN_BG};
+    color: white;
+    border-radius: 22px;
+    border: none;
+    font-size: 16px;
+}
+QDialog#productos QPushButton#overlay_btn:hover {
+    background-color: {BTN_HOVER};
+}
+
+QDialog#productos QLabel#bcv_lbl {
+    font-weight: 600;
+    color: {PRIMARY_DARK};
+}
+
+QDialog#productos QLabel#info_base {
+    font-size: 11px;
+    color: {TEXT_COLOR};
+    font-style: italic;
+}
+
+QDialog#productos QLabel#precio_usd {
+    font-weight: 700;
+    color: {ACCENT};
+}
+QDialog#productos QLabel#precio_bs {
+    font-weight: 600;
+    color: {TEXT_COLOR};
+}
+
+QDialog#productos QFrame#preview_frame {
+    border:1px solid {BORDER};
+    background: {SURFACE};
+}

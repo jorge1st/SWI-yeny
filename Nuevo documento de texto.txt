@@ -1,0 +1,14 @@
+PyQt5
+pyqtgraph
+matplotlib
+mplcursors
+numpy
+requests
+beautifulsoup4
+reportlab
+bcrypt
+PyQtWebEngine
+pyqt5-tools
+pillow
+
+ python -m pip install

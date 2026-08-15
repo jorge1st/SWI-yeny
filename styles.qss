@@ -1,0 +1,351 @@
+/* Caducidad module QSS */
+QDialog#caducidad, QWidget#caducidad {
+    background: #000000;
+    color: #222222;
+}
+
+QDialog#caducidad QLabel { color: #6B4ED6; font-weight:700; }
+QDialog#caducidad QPushButton { background:#8E6BE6; color:#FFFFFF; border-radius:8px; padding:6px 10px; }
+QDialog#caducidad QPushButton:hover { background:#6B4ED6; }
+QDialog#caducidad QTableWidget { background:#FFFFFF; border: none; }
+
+/* Clientes module QSS */
+QDialog#clientes_manager, QWidget#clientes_manager {
+    background: #000000;
+    color: #222222;
+}
+
+QDialog#clientes_manager QLabel, QWidget#clientes_manager QLabel {
+    color: #6B4ED6;
+}
+
+QDialog#clientes_manager QLineEdit, QWidget#clientes_manager QLineEdit {
+    background: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 6px;
+    color: #222222;
+}
+
+QDialog#clientes_manager QPushButton, QWidget#clientes_manager QPushButton {
+    background: #8E6BE6;
+    color: #FFFFFF;
+    border-radius: 10px;
+    padding: 8px 12px;
+}
+
+QDialog#clientes_manager QPushButton:hover, QWidget#clientes_manager QPushButton:hover {
+    background: #6B4ED6;
+}
+
+QDialog#clientes_manager QTableWidget, QWidget#clientes_manager QTableWidget {
+    background: #FFFFFF;
+    border: none;
+}
+
+/* common.qss: reglas compartidas y tokens para tarjetas y tipografía */
+/* Tokens: #FFFFFF, Segoe UI, 13px, #222222 */
+
+QWidget, QDialog, QMainWindow {
+    font-family: "Segoe UI";
+    font-size: 13px;
+    color: #222222;
+}
+
+/* Card style: any QFrame with class 'card' or objectName containing 'card' */
+QFrame.card, QWidget.card {
+    background: #FFFFFF;
+    border-radius: 12px;
+    border: none;
+}
+
+/* Buttons baseline */
+QPushButton {
+    font-family: "Segoe UI";
+    font-size: 13px;
+}
+
+/* Labels baseline */
+QLabel {
+    font-family: "Segoe UI";
+    color: #222222;
+}
+
+/* Table styles */
+QTableWidget, QTableView {
+    background: #FFFFFF;
+    color: #222222;
+    border: none;
+}
+QTableWidget::item, QTableView::item {
+    padding: 6px;
+}
+QHeaderView::section {
+    background: #FFFFFF;
+    color: #222222;
+    padding: 6px;
+    border-bottom: none;
+}
+
+/* Inputs and surfaces */
+QLineEdit, QComboBox, QTextEdit, QPlainTextEdit {
+    background: #FFFFFF;
+    color: #222222;
+    border: none;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+/* Icon color helper: apply to QToolButton and QLabel.icon */
+QToolButton, QLabel.icon {
+    color: {ICON_COLOR};
+}
+
+/* Add a clear border token application for generic frames */
+QFrame {
+    border: none;
+}
+
+/* Dashboard module QSS - uses tokens like #6B4ED6, #000000, #222222, #FFFFFF */
+QMainWindow#dashboard {
+    background: #000000;
+    color: #222222;
+}
+
+QMainWindow#dashboard QFrame {
+    background: transparent;
+}
+
+QMainWindow#dashboard QLabel {
+    color: #222222;
+}
+
+QMainWindow#dashboard QLabel#menu_title, QMainWindow#dashboard QLabel#dept_title {
+    color: #6B4ED6;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+QMainWindow#dashboard QFrame#bcv_box {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #000000, stop:1 #000000);
+    border-radius: 14px;
+    border: none;
+}
+QMainWindow#dashboard QLabel#bcv_label { color: #6B4ED6; font-weight:600; font-size:13px; }
+QMainWindow#dashboard QLabel#bcv_value { font-size:18px; font-weight:700; color:#222222; }
+QMainWindow#dashboard QLabel#bcv_time { font-size:11px; color:gray; }
+QMainWindow#dashboard QPushButton {
+    background: transparent;
+    color: #222222;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+QMainWindow#dashboard QPushButton:hover {
+    background: #8E6BE6;
+}
+
+/* sidebar specific (best-effort) */
+QWidget#sidebar, QFrame#sidebar {
+    background: #6B4ED6;
+    color: #FFFFFF;
+}
+
+QWidget#sidebar QPushButton {
+    color: #FFFFFF;
+}
+
+/* Menu buttons */
+QMainWindow#dashboard QPushButton[role="menu_button"] {
+    background: #8E6BE6;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 16px;
+    color: #5A3FC7;
+    padding: 6px 10px 6px 14px;
+    text-align: left;
+}
+QMainWindow#dashboard QPushButton[role="menu_button"]:hover { background:#8E6BE6; }
+
+/* Department buttons */
+QMainWindow#dashboard QPushButton[role="dept_button"] {
+    background: #8E6BE6;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 14px;
+    color: #5A3FC7;
+    padding: 8px;
+    text-align: center;
+}
+QMainWindow#dashboard QPushButton[role="dept_button"]:hover { background:#8E6BE6; }
+
+/* Buttons tagged as sidebar role */
+QMainWindow#dashboard QPushButton[role="sidebar"] {
+    background: transparent;
+    color: #FFFFFF;
+    text-align: left;
+    padding: 10px;
+    font-size: 15px;
+    font-weight: 600;
+}
+QMainWindow#dashboard QPushButton[role="sidebar"]:hover {
+    background: #5A3FC7;
+}
+
+/* Entradas module QSS */
+QDialog#entradas, QWidget#entradas {
+    background: #000000;
+    color: #222222;
+}
+
+QDialog#entradas QLabel, QWidget#entradas QLabel { color: #222222; }
+QDialog#entradas QLineEdit, QWidget#entradas QLineEdit { background: #FFFFFF; border: none; border-radius:8px; padding:6px; color:#222222; }
+QDialog#entradas QComboBox, QWidget#entradas QComboBox { background:#FFFFFF; border: none; }
+QDialog#entradas QPushButton, QWidget#entradas QPushButton { background:#8E6BE6; color:#FFFFFF; border-radius:8px; padding:6px 10px; }
+QDialog#entradas QPushButton:hover { background:#6B4ED6; }
+QDialog#entradas QTableWidget, QWidget#entradas QTableWidget { background:#FFFFFF; border: none; }
+
+/* Graficos module QSS */
+QDialog#graficos, QWidget#graficos {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #000000, stop:1 #FFFFFF);
+}
+QDialog#graficos QLabel { color: #5A3FC7; font-family: 'Segoe UI'; }
+QDialog#graficos QPushButton { background: #8E6BE6; color: white; border-radius: 8px; padding: 10px 20px; font-weight: 600; }
+QDialog#graficos QPushButton:hover { background: #6B4ED6; }
+QDialog#graficos QComboBox { border: none; border-radius: 8px; padding: 8px; background: #FFFFFF; }
+QDialog#graficos QCheckBox { color: #5A3FC7; font-weight: 500; }
+
+QDialog#graficos QFrame#ctrl_panel { background: #FFFFFF; border-radius: 16px; border: none; }
+QDialog#graficos QFrame#graph_card { background: #FFFFFF; border-radius: 20px; border: none; }
+QDialog#graficos QLabel#tooltip_label { background: rgba(60, 60, 80, 230); color: white; padding: 10px 14px; border-radius: 10px; font-size: 12px; }
+
+/* Inventario / Utilidad module QSS */
+QWidget#inventory_view, QWidget#inventory_view * { color: #222222; }
+QWidget#inventory_view QLabel#title { font-size:20px; font-weight:800; color: #6B4ED6; }
+QWidget#inventory_view QFrame.card { border-radius:8px; padding:12px; }
+QWidget#inventory_view QGroupBox { font-weight:700; color:#6B4ED6; border: none; border-radius:10px; }
+QWidget#inventory_view QComboBox#product_cb, QWidget#inventory_view QLineEdit#qty_input { border: none; border-radius:6px; padding:6px; background:#FFFFFF; }
+QWidget#inventory_view QPushButton#use_stock_btn, QWidget#inventory_view QPushButton#calc_btn { background:#8E6BE6; color:#FFFFFF; border-radius:6px; padding:6px 12px; }
+QWidget#inventory_view QPushButton#use_stock_btn:hover, QWidget#inventory_view QPushButton#calc_btn:hover { background:#6B4ED6; }
+QWidget#inventory_view QFrame#result_frame { background:#FFFFFF; border-radius:8px; border: none; }
+QWidget#inventory_view QLabel#result_title { font-weight:700; color:#222222; }
+QWidget#inventory_view QLabel#res_producto_lbl { font-weight:600; color:#6B4ED6; }
+QWidget#inventory_view QLabel#res_util_unidad_lbl, QWidget#inventory_view QLabel#res_util_total_lbl { font-weight:700; color:{SUCCESS}; }
+QWidget#inventory_view QFrame#line, QWidget#inventory_view QFrame#line2 { background: #E8E3F5; }
+
+/* Login module QSS */
+QDialog#login {
+    background-color: #FFFFFF;
+    border: none;
+    border-radius: 15px;
+}
+
+QDialog#login QLabel {
+    font-family: 'Segoe UI';
+    font-size: 18px;
+    font-weight: bold;
+    color: #6B4ED6;
+}
+
+QDialog#login QLineEdit {
+    border: none;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 14px;
+}
+
+QDialog#login QPushButton {
+    background-color: #6B4ED6;
+    color: white;
+    font-size: 15px;
+    font-weight: bold;
+    border-radius: 10px;
+    padding: 8px;
+}
+
+QDialog#login QPushButton:hover {
+    background-color: #6B4ED6;
+}
+
+/* Productos module QSS */
+QDialog#productos {
+}
+
+QDialog#productos QLabel#title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #5A3FC7;
+}
+
+QDialog#productos QLineEdit, QComboBox, QDateEdit, QDoubleSpinBox {
+    border: none;
+    border-radius: 8px;
+    padding: 6px;
+    background: #FFFFFF;
+    font-size: 13px;
+}
+
+QDialog#productos QPushButton#overlay_btn {
+    background-color: #8E6BE6;
+    color: white;
+    border-radius: 22px;
+    border: none;
+    font-size: 16px;
+}
+QDialog#productos QPushButton#overlay_btn:hover {
+    background-color: #6B4ED6;
+}
+
+QDialog#productos QLabel#bcv_lbl {
+    font-weight: 600;
+    color: #5A3FC7;
+}
+
+QDialog#productos QLabel#info_base {
+    font-size: 11px;
+    color: #222222;
+    font-style: italic;
+}
+
+QDialog#productos QLabel#precio_usd {
+    font-weight: 700;
+    color: #00C853;
+}
+QDialog#productos QLabel#precio_bs {
+    font-weight: 600;
+    color: #222222;
+}
+
+QDialog#productos QFrame#preview_frame {
+    border: none;
+    background: #FFFFFF;
+}
+
+/* Splash module QSS */
+QDialog#splash {
+    background: qlineargradient(x1:0 y1:0, x2:1 y2:1, stop:0 #FFFFFF, stop:1 #000000);
+}
+
+QDialog#splash QLabel#system_name {
+    color: #5A3FC7;
+}
+QDialog#splash QLabel#company {
+    color: #222222;
+}
+QDialog#splash QLabel#rif {
+    color: #222222;
+}
+QDialog#splash QPushButton#cont_btn {
+    background: #8E6BE6;
+    color: white;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-weight: 800;
+    font-size: 18px;
+}
+QDialog#splash QPushButton#cont_btn:hover {
+    background: #6B4ED6;
+}
+QDialog#splash QLabel {
+    color: #222222;
+}

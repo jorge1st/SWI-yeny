@@ -1,0 +1,62 @@
+/* common.qss: reglas compartidas y tokens para tarjetas y tipografía */
+/* Tokens: {CARD_BG}, {FONT_FAMILY}, {FONT_SIZE}, {TEXT_COLOR} */
+
+QWidget, QDialog, QMainWindow {
+    font-family: "{FONT_FAMILY}";
+    font-size: {FONT_SIZE};
+    color: {TEXT_COLOR};
+}
+
+/* Card style: any QFrame with class 'card' or objectName containing 'card' */
+QFrame.card, QWidget.card {
+    background: {CARD_BG};
+    border-radius: 12px;
+    border: 1px solid {BORDER};
+}
+
+/* Buttons baseline */
+QPushButton {
+    font-family: "{FONT_FAMILY}";
+    font-size: {FONT_SIZE};
+}
+
+/* Labels baseline */
+QLabel {
+    font-family: "{FONT_FAMILY}";
+    color: {TEXT_COLOR};
+}
+
+/* Table styles */
+QTableWidget, QTableView {
+    background: {SURFACE};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+}
+QTableWidget::item, QTableView::item {
+    padding: 6px;
+}
+QHeaderView::section {
+    background: {CARD_BG};
+    color: {TEXT};
+    padding: 6px;
+    border-bottom: 1px solid {BORDER};
+}
+
+/* Inputs and surfaces */
+QLineEdit, QComboBox, QTextEdit, QPlainTextEdit {
+    background: {SURFACE};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    border-radius: 6px;
+    padding: 6px;
+}
+
+/* Icon color helper: apply to QToolButton and QLabel.icon */
+QToolButton, QLabel.icon {
+    color: {ICON_COLOR};
+}
+
+/* Add a clear border token application for generic frames */
+QFrame {
+    border: 1px solid {BORDER};
+}

@@ -1,0 +1,104 @@
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QFormLayout, QComboBox, QLineEdit,
+    QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog
+)
+from db_manager import DBManager
+
+class SalidasWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.db = DBManager()
+        self.setWindowTitle("Registro de Salidas")
+        self.resize(700, 550)
+        self.setStyleSheet("""QDialog { background-color: #F5F3FB; }""")
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.product_combo = QComboBox()
+        self.cargar_productos()
+        form.addRow(QLabel("Producto:"), self.product_combo)
+
+        self.cantidad_input = QLineEdit()
+        form.addRow(QLabel("Cantidad:"), self.cantidad_input)
+
+        if "Salidas" == "Entradas":
+            self.costo_input = QLineEdit()
+            form.addRow(QLabel("Costo (opcional):"), self.costo_input)
+
+        img_btn = QPushButton("Adjuntar imagen (opcional)")
+        img_btn.clicked.connect(self.seleccionar_imagen)
+        self.selected_image = None
+        form.addRow(QLabel("Imagen:"), img_btn)
+
+        save_btn = QPushButton("Guardar")
+        save_btn.clicked.connect(self.guardar)
+        layout.addLayout(form)
+        layout.addWidget(save_btn)
+
+        # Tabla de registros
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["ID", "Código", "Producto", "Tipo", "Cantidad", "Costo", "Fecha"])
+        layout.addWidget(self.table)
+        self.cargar_tabla()
+
+    def seleccionar_imagen(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Seleccionar imagen', '', 'Images (*.png *.jpg *.jpeg *.bmp)')
+        if path:
+            import shutil, os
+            os.makedirs('img', exist_ok=True)
+            dest = os.path.join('img', os.path.basename(path))
+            try:
+                shutil.copy(path, dest)
+                self.selected_image = dest
+            except Exception as ex:
+                QMessageBox.warning(self, 'Error', f'No se pudo copiar la imagen: {ex}')
+
+    def cargar_productos(self):
+        self.product_combo.clear()
+        rows = self.db.listar_productos()
+        for r in rows:
+            self.product_combo.addItem(f"{r['nombre']} | {r['codigo']}", r['id'])
+
+    def guardar(self):
+        prod_id = self.product_combo.currentData()
+        if not prod_id:
+            QMessageBox.warning(self, 'Atención', 'Seleccione un producto')
+            return
+
+        try:
+            cantidad = int(self.cantidad_input.text())
+        except ValueError:
+            QMessageBox.warning(self, 'Atención', 'Cantidad inválida')
+            return
+
+        costo = 0.0
+        if "Salidas" == "Entradas":
+            try:
+                costo = float(self.costo_input.text()) if self.costo_input.text() else 0.0
+            except ValueError:
+                QMessageBox.warning(self, 'Atención', 'Costo inválido')
+                return
+
+        try:
+            tipo_str = "Salidas"[:-1]
+            self.db.insert_movimiento(tipo_str, prod_id, cantidad, costo, imagen=self.selected_image)
+            QMessageBox.information(self, 'Éxito', 'Registro guardado')
+            self.cargar_tabla()
+        except Exception as ex:
+            QMessageBox.critical(self, 'Error', str(ex))
+
+    def cargar_tabla(self):
+        self.table.setRowCount(0)
+        rows = self.db.listar_movimientos(200)
+        for r in rows:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(str(r.get('id', ''))))
+            self.table.setItem(row, 1, QTableWidgetItem(str(r.get('codigo_producto', ''))))
+            self.table.setItem(row, 2, QTableWidgetItem(str(r.get('producto_nombre', ''))))
+            self.table.setItem(row, 3, QTableWidgetItem(str(r.get('tipo', ''))))
+            self.table.setItem(row, 4, QTableWidgetItem(str(r.get('cantidad', ''))))
+            self.table.setItem(row, 5, QTableWidgetItem(str(r.get('costo', ''))))
+            self.table.setItem(row, 6, QTableWidgetItem(str(r.get('fecha', ''))))

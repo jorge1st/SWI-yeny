@@ -1,0 +1,12 @@
+/* Entradas module QSS */
+QDialog#entradas, QWidget#entradas {
+    background: {BG};
+    color: {TEXT};
+}
+
+QDialog#entradas QLabel, QWidget#entradas QLabel { color: {TEXT}; }
+QDialog#entradas QLineEdit, QWidget#entradas QLineEdit { background: {SURFACE}; border:1px solid {BORDER}; border-radius:8px; padding:6px; color:{TEXT}; }
+QDialog#entradas QComboBox, QWidget#entradas QComboBox { background:{SURFACE}; border:1px solid {BORDER}; }
+QDialog#entradas QPushButton, QWidget#entradas QPushButton { background:{BTN_BG}; color:{SURFACE}; border-radius:8px; padding:6px 10px; }
+QDialog#entradas QPushButton:hover { background:{BTN_HOVER}; }
+QDialog#entradas QTableWidget, QWidget#entradas QTableWidget { background:{SURFACE}; border: 1px solid {BORDER}; }

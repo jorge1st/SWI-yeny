@@ -1,0 +1,866 @@
+# modules/inventario.py
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
+    QTableWidget, QTableWidgetItem, QFileDialog,
+    QMessageBox, QComboBox, QLineEdit, QFormLayout, QSizePolicy,
+    QGridLayout, QGroupBox, QTextEdit, QScrollArea
+)
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont
+from decimal import Decimal, ROUND_HALF_UP, getcontext
+from typing import List, Dict, Any, Optional
+import os
+import csv
+
+from modules.pricing import calcular_precio_venta_actual, format_usd_minimal, format_bs_minimal
+
+getcontext().prec = 28
+DEC_2 = Decimal("0.01")
+DEC_USD = Decimal("0.0001")
+
+
+def D(v) -> Decimal:
+    try:
+        return Decimal(str(v))
+    except Exception:
+        return Decimal('0')
+
+
+def get_current_bcv_rate_safe():
+    try:
+        from main import get_current_bcv_rate
+        r, ts = get_current_bcv_rate()
+        return (D(r), ts) if r is not None else (None, ts)
+    except Exception:
+        return (None, None)
+
+
+class InventoryViewWidget(QWidget):
+    """
+    Resumen de inventario con USD como moneda base permanente.
+    Diseño profesional con información claramente organizada.
+    """
+    RATE_POLL_MS = 5000
+
+    def __init__(self, db, parent=None):
+        super().__init__(parent)
+        self.db = db
+        self._inv_cached: Dict[str, Any] = {}
+        self._products_list: List[Dict[str, Any]] = []
+        self._last_known_rate: Optional[Decimal] = None
+        self._build_ui()
+
+        # Poll BCV rate
+        self._rate_poll_timer = QTimer(self)
+        self._rate_poll_timer.setInterval(self.RATE_POLL_MS)
+        self._rate_poll_timer.timeout.connect(self._check_rate_change)
+        self._rate_poll_timer.start()
+
+        QTimer.singleShot(0, self.refresh)
+
+    def closeEvent(self, ev):
+        try:
+            if hasattr(self, "_rate_poll_timer") and self._rate_poll_timer:
+                self._rate_poll_timer.stop()
+        except Exception:
+            pass
+        super().closeEvent(ev)
+
+    def _check_rate_change(self):
+        try:
+            rate_dec, _ = get_current_bcv_rate_safe()
+            if (rate_dec is None and self._last_known_rate is not None) or \
+               (rate_dec is not None and self._last_known_rate is not None and rate_dec != self._last_known_rate):
+                self._last_known_rate = rate_dec
+                if self.isVisible():
+                    self.refresh()
+        except Exception:
+            pass
+
+    def _build_ui(self):
+        self.setObjectName("inventory_view")
+        main = QVBoxLayout(self)
+        main.setContentsMargins(16, 12, 16, 12)
+        main.setSpacing(12)
+
+        # === TÍTULO ===
+        title = QLabel("Resumen de Inventario")
+        title.setStyleSheet("font-size:20px; font-weight:800; color:#5E3DB3;")
+        title.setAlignment(Qt.AlignCenter)
+        main.addWidget(title)
+
+        # === INFO BAR ELIMINADO ===
+        # (Se removió la notificación amarilla que estaba aquí)
+
+        # === CARDS DE TOTALES CON COLORES MÁS VIBRANTES ===
+        cards_layout = QHBoxLayout()
+        cards_layout.setSpacing(12)
+
+        # Card 1: Total físico - COLOR NARANJA/ÁMBAR VIBRANTE
+        card_fisico = self._create_card(
+            "Total inventario físico", 
+            "--", 
+            "#FF8C00", "#FFFFFF",  # Fondo naranja, texto blanco
+            "unidades",
+            "#FF6B35"  # Borde más oscuro
+        )
+        self.tf_val = card_fisico["value_label"]
+        cards_layout.addWidget(card_fisico["frame"])
+
+        # Card 2: Valor USD (PRINCIPAL) - COLOR VERDE ESMERALDA VIBRANTE
+        card_usd = self._create_card(
+            "Valor total (USD base)",
+            "--",
+            "#00C853", "#FFFFFF",  # Fondo verde brillante, texto blanco
+            "moneda base",
+            "#00A344"  # Borde más oscuro
+        )
+        self.val_usd_lbl = card_usd["value_label"]
+        card_usd["frame"].setMinimumWidth(280)
+        card_usd["value_label"].setStyleSheet("font-size:24px; font-weight:800; color:#FFFFFF;")
+        cards_layout.addWidget(card_usd["frame"], 2)  # Más peso
+
+        # Card 3: Valor Bs (calculado) - COLOR AZUL ELÉCTRICO VIBRANTE
+        card_bs = self._create_card(
+            "Equivalente hoy (Bs)",
+            "--",
+            "#2979FF", "#FFFFFF",  # Fondo azul brillante, texto blanco
+            "con tasa actual",
+            "#1E88E5"  # Borde más oscuro
+        )
+        self.val_bs_lbl = card_bs["value_label"]
+        cards_layout.addWidget(card_bs["frame"], 1)
+
+        # Card 4: Utilidad - COLOR PÚRPURA VIBRANTE
+        card_util = self._create_card(
+            "Utilidad neta (USD)",
+            "--",
+            "#AA00FF", "#FFFFFF",  # Fondo púrpura brillante, texto blanco
+            "margen estimado",
+            "#8800CC"  # Borde más oscuro
+        )
+        self.util_amount_lbl = card_util["value_label"]
+        cards_layout.addWidget(card_util["frame"])
+
+        main.addLayout(cards_layout)
+
+        # === SECCIÓN DE CÁLCULO ===
+        calc_group = QGroupBox("Calculadora de Utilidad por Producto")
+        calc_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: 700;
+                color: #5E3DB3;
+                border: 2px solid #D9CBFF;
+                border-radius: 10px;
+                margin-top: 12px;
+                padding-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """)
+        calc_layout = QVBoxLayout(calc_group)
+        calc_layout.setSpacing(12)
+
+        # Fila 1: Selector de producto y cantidad
+        row1 = QHBoxLayout()
+        
+        # Producto
+        prod_layout = QVBoxLayout()
+        prod_layout.setSpacing(4)
+        prod_lbl = QLabel("Producto:")
+        prod_lbl.setStyleSheet("font-weight:600; color:#333; font-size:12px;")
+        self.product_cb = QComboBox()
+        self.product_cb.setMinimumWidth(300)
+        self.product_cb.setStyleSheet("""
+            QComboBox {
+                border: 2px solid #C5B4E3;
+                border-radius: 6px;
+                padding: 6px;
+                background: white;
+            }
+        """)
+        self.product_cb.currentIndexChanged.connect(self._on_product_change)
+        prod_layout.addWidget(prod_lbl)
+        prod_layout.addWidget(self.product_cb)
+        row1.addLayout(prod_layout)
+
+        # Cantidad
+        qty_layout = QVBoxLayout()
+        qty_layout.setSpacing(4)
+        qty_lbl = QLabel("Cantidad:")
+        qty_lbl.setStyleSheet("font-weight:600; color:#333; font-size:12px;")
+        qty_row = QHBoxLayout()
+        self.qty_input = QLineEdit()
+        self.qty_input.setPlaceholderText("Ej: 25")
+        self.qty_input.setFixedWidth(100)
+        self.qty_input.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #C5B4E3;
+                border-radius: 6px;
+                padding: 6px;
+                background: white;
+            }
+        """)
+        self.use_stock_btn = QPushButton("Usar stock")
+        self.use_stock_btn.setStyleSheet("""
+            QPushButton {
+                background: #D9CBFF;
+                color: #4A3BA5;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-weight:600;
+                font-size:11px;
+            }
+            QPushButton:hover {
+                background: #C8B5FF;
+            }
+        """)
+        self.use_stock_btn.clicked.connect(self._use_stock_full)
+        qty_row.addWidget(self.qty_input)
+        qty_row.addWidget(self.use_stock_btn)
+        qty_row.addStretch()
+        qty_layout.addWidget(qty_lbl)
+        qty_layout.addLayout(qty_row)
+        row1.addLayout(qty_layout)
+
+        # Precio opcional
+        price_layout = QVBoxLayout()
+        price_layout.setSpacing(4)
+        price_lbl = QLabel("Precio Bs (opcional):")
+        price_lbl.setStyleSheet("font-weight:600; color:#666; font-size:12px;")
+        self.override_price_input = QLineEdit()
+        self.override_price_input.setPlaceholderText("Solo si es diferente")
+        self.override_price_input.setFixedWidth(140)
+        self.override_price_input.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #DDD;
+                border-radius: 6px;
+                padding: 6px;
+                background: white;
+            }
+        """)
+        price_layout.addWidget(price_lbl)
+        price_layout.addWidget(self.override_price_input)
+        row1.addLayout(price_layout)
+
+        calc_layout.addLayout(row1)
+
+        # Botón calcular
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self.calc_btn = QPushButton("🔍 Calcular Utilidad")
+        self.calc_btn.setStyleSheet("""
+            QPushButton {
+                background: #6B4ED6;
+                color: white;
+                border-radius: 8px;
+                padding: 10px 24px;
+                font-weight: 700;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: #5A3FC7;
+            }
+        """)
+        self.calc_btn.clicked.connect(self._on_calc_product_utility)
+        btn_row.addWidget(self.calc_btn)
+        btn_row.addStretch()
+        calc_layout.addLayout(btn_row)
+
+        # === RESULTADO DEL CÁLCULO ===
+        self.result_frame = QFrame()
+        self.result_frame.setStyleSheet("""
+            QFrame {
+                background: #F8F9FA;
+                border-radius: 8px;
+                border: 1px solid #E9ECEF;
+            }
+        """)
+        result_layout = QVBoxLayout(self.result_frame)
+        result_layout.setContentsMargins(16, 12, 16, 12)
+        result_layout.setSpacing(8)
+
+        # Título del resultado
+        self.result_title = QLabel("Resultado del cálculo")
+        self.result_title.setStyleSheet("font-weight: 700; color: #333; font-size: 13px;")
+        result_layout.addWidget(self.result_title)
+
+        # Grid de datos
+        result_grid = QGridLayout()
+        result_grid.setColumnStretch(1, 1)
+        result_grid.setColumnStretch(3, 1)
+        result_grid.setHorizontalSpacing(20)
+        result_grid.setVerticalSpacing(8)
+
+        # Fila 0: Producto y Cantidad
+        self.res_producto_lbl = QLabel("Producto: --")
+        self.res_producto_lbl.setStyleSheet("font-weight:600; color:#5E3DB3;")
+        result_grid.addWidget(self.res_producto_lbl, 0, 0, 1, 2)
+        
+        self.res_cantidad_lbl = QLabel("Cantidad: --")
+        result_grid.addWidget(self.res_cantidad_lbl, 0, 2, 1, 2)
+
+        # Separador
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setStyleSheet("background: #DDD;")
+        result_grid.addWidget(line, 1, 0, 1, 4)
+
+        # Fila 2: Precios
+        self.res_precio_con_iva_lbl = QLabel("Precio con IVA: --")
+        result_grid.addWidget(self.res_precio_con_iva_lbl, 2, 0, 1, 2)
+        
+        self.res_precio_sin_iva_lbl = QLabel("Precio sin IVA: --")
+        result_grid.addWidget(self.res_precio_sin_iva_lbl, 2, 2, 1, 2)
+
+        # Fila 3: Costo y Margen
+        self.res_costo_lbl = QLabel("Costo unitario: --")
+        result_grid.addWidget(self.res_costo_lbl, 3, 0, 1, 2)
+        
+        self.res_margen_lbl = QLabel("Margen: --")
+        result_grid.addWidget(self.res_margen_lbl, 3, 2, 1, 2)
+
+        # Separador
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.HLine)
+        line2.setStyleSheet("background: #DDD;")
+        result_grid.addWidget(line2, 4, 0, 1, 4)
+
+        # Fila 5: Utilidades (DESTACADAS)
+        util_frame = QFrame()
+        util_frame.setStyleSheet("""
+            QFrame {
+                background: #E9F7EF;
+                border-radius: 6px;
+                padding: 8px;
+            }
+        """)
+        util_inner = QHBoxLayout(util_frame)
+        
+        self.res_util_unidad_lbl = QLabel("Utilidad/unidad: --")
+        self.res_util_unidad_lbl.setStyleSheet("font-weight: 700; color: #2D7A2D; font-size: 13px;")
+        util_inner.addWidget(self.res_util_unidad_lbl)
+        
+        util_inner.addWidget(QLabel("|"))
+        
+        self.res_util_total_lbl = QLabel("Utilidad total: --")
+        self.res_util_total_lbl.setStyleSheet("font-weight: 800; color: #2D7A2D; font-size: 14px;")
+        util_inner.addWidget(self.res_util_total_lbl)
+        
+        result_grid.addWidget(util_frame, 5, 0, 1, 4)
+
+        # === NUEVO: SECCIÓN DE EXPLICACIÓN DE MARGEN VS GANANCIA ===
+        explanation_frame = QFrame()
+        explanation_frame.setStyleSheet("""
+            QFrame {
+                background: #FFF3E0;
+                border-radius: 6px;
+                border: 1px solid #FFB74D;
+                padding: 8px;
+                margin-top: 8px;
+            }
+        """)
+        explanation_layout = QVBoxLayout(explanation_frame)
+        explanation_layout.setSpacing(6)
+        
+        # Título explicativo
+        expl_title = QLabel("📊 Desglose de Rentabilidad")
+        expl_title.setStyleSheet("font-weight: 700; color: #E65100; font-size: 12px;")
+        explanation_layout.addWidget(expl_title)
+        
+        # Grid para mostrar ambos valores
+        expl_grid = QGridLayout()
+        expl_grid.setColumnStretch(1, 1)
+        expl_grid.setColumnStretch(3, 1)
+        expl_grid.setHorizontalSpacing(15)
+        
+        # Ganancia sobre costo (Mark-up)
+        self.res_markup_lbl = QLabel("Ganancia sobre costo: --")
+        self.res_markup_lbl.setStyleSheet("font-weight: 600; color: #2E7D32;")
+        expl_grid.addWidget(self.res_markup_lbl, 0, 0, 1, 2)
+        
+        # Margen sobre venta
+        self.res_margin_detailed_lbl = QLabel("Margen sobre venta: --")
+        self.res_margin_detailed_lbl.setStyleSheet("font-weight: 600; color: #1565C0;")
+        expl_grid.addWidget(self.res_margin_detailed_lbl, 0, 2, 1, 2)
+        
+        # Fórmulas explicativas
+        formula_markup = QLabel("<span style='font-size:10px; color:#666;'>Fórmula: (Utilidad ÷ Costo) × 100</span>")
+        formula_markup.setStyleSheet("font-size: 10px; color: #666;")
+        expl_grid.addWidget(formula_markup, 1, 0, 1, 2)
+        
+        formula_margin = QLabel("<span style='font-size:10px; color:#666;'>Fórmula: (Utilidad ÷ Precio) × 100</span>")
+        formula_margin.setStyleSheet("font-size: 10px; color: #666;")
+        expl_grid.addWidget(formula_margin, 1, 2, 1, 2)
+        
+        explanation_layout.addLayout(expl_grid)
+        
+        # Nota explicativa
+        expl_note = QLabel("💡 <b>Nota:</b> La 'Ganancia sobre costo' es el % que tú configuraste (ej: 30%). El 'Margen sobre venta' es lo que realmente ganas de cada venta.")
+        expl_note.setStyleSheet("font-size: 11px; color: #555;")
+        expl_note.setWordWrap(True)
+        explanation_layout.addWidget(expl_note)
+        
+        result_layout.addLayout(result_grid)
+        result_layout.addWidget(explanation_frame)
+        
+        self.result_frame.hide()  # Oculto hasta calcular
+        calc_layout.addWidget(self.result_frame)
+
+        main.addWidget(calc_group)
+
+        # === ESTADÍSTICAS RÁPIDAS ===
+        stats_layout = QHBoxLayout()
+        stats_layout.setSpacing(16)
+
+        self.lbl_count_products = QLabel("📦 Productos: --")
+        self.lbl_no_iva = QLabel("⚠️ Sin IVA: --")
+        self.lbl_by_usd = QLabel("💵 En $: --")
+        self.lbl_by_bs = QLabel("💴 En Bs: --")
+        self.lbl_tasa = QLabel("📈 Tasa: --")
+        self.lbl_avg_margin = QLabel("📊 Margen: --%")
+
+        for lbl in [self.lbl_count_products, self.lbl_no_iva, self.lbl_by_usd, 
+                    self.lbl_by_bs, self.lbl_tasa, self.lbl_avg_margin]:
+            lbl.setStyleSheet("font-size: 11px; color: #555;")
+            stats_layout.addWidget(lbl)
+
+        stats_layout.addStretch()
+        main.addLayout(stats_layout)
+
+        # === TABLA TOP 5 ===
+        table_group = QGroupBox("Top 5 Productos por Utilidad Potencial")
+        table_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: 700;
+                color: #5E3DB3;
+                border: 2px solid #D9CBFF;
+                border-radius: 10px;
+                margin-top: 8px;
+                padding-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """)
+        table_layout = QVBoxLayout(table_group)
+
+        self.top_table = QTableWidget()
+        self.top_table.setColumnCount(6)
+        self.top_table.setHorizontalHeaderLabels(["ID", "Código", "Nombre", "Stock", "IVA", "Utilidad ($)"])
+        self.top_table.setAlternatingRowColors(True)
+        self.top_table.setMaximumHeight(180)
+        self.top_table.setStyleSheet("""
+            QTableWidget {
+                border: none;
+                background: white;
+            }
+            QHeaderView::section {
+                background: #F0E9FF;
+                color: #5E3DB3;
+                font-weight: 700;
+                padding: 6px;
+                border: none;
+            }
+        """)
+        table_layout.addWidget(self.top_table)
+        main.addWidget(table_group)
+
+        # === BOTONES DE ACCIÓN ===
+        action_layout = QHBoxLayout()
+        action_layout.addStretch()
+        
+        refresh_btn = QPushButton("🔄 Refrescar")
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background: #8E6BE6;
+                color: white;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: #7A5ACB;
+            }
+        """)
+        refresh_btn.clicked.connect(lambda: QTimer.singleShot(0, self.refresh))
+        action_layout.addWidget(refresh_btn)
+
+        back_btn = QPushButton("← Volver al panel")
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background: #D9CBFF;
+                color: #4A3BA5;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: #C8B5FF;
+            }
+        """)
+        back_btn.clicked.connect(self._on_back)
+        action_layout.addWidget(back_btn)
+
+        main.addLayout(action_layout)
+
+    def _create_card(self, title, value, bg_color, text_color, subtitle, border_color=None):
+        """Crea una card de estadística reutilizable con colores vibrantes."""
+        frame = QFrame()
+        border = border_color if border_color else bg_color
+        frame.setStyleSheet(f"""
+            QFrame {{
+                background: {bg_color};
+                border-radius: 12px;
+                border: 2px solid {border};
+                padding: 12px;
+            }}
+        """)
+        # Sombra sutil
+        frame.setGraphicsEffect(None)
+        
+        layout = QVBoxLayout(frame)
+        layout.setSpacing(6)
+
+        title_lbl = QLabel(title)
+        title_lbl.setStyleSheet(f"font-size: 11px; color: rgba(255,255,255,0.9); font-weight: 600;")
+        
+        value_lbl = QLabel(value)
+        value_lbl.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {text_color};")
+        
+        subtitle_lbl = QLabel(subtitle)
+        subtitle_lbl.setStyleSheet("font-size: 10px; color: rgba(255,255,255,0.8);")
+
+        layout.addWidget(title_lbl)
+        layout.addWidget(value_lbl)
+        layout.addWidget(subtitle_lbl)
+
+        return {"frame": frame, "value_label": value_lbl}
+
+    # ==================== MÉTODOS DE INTERACCIÓN ====================
+
+    def _on_back(self):
+        try:
+            p = self.parent()
+            while p is not None:
+                if hasattr(p, "restore_dashboard_view") and callable(getattr(p, "restore_dashboard_view")):
+                    p.restore_dashboard_view()
+                    return
+                p = p.parent()
+        except Exception:
+            pass
+
+    def _use_stock_full(self):
+        pid = self._current_selected_product_id()
+        if pid is None:
+            return
+        prod = self._product_by_id(pid)
+        if not prod:
+            return
+        try:
+            stock = float(prod.get('stock') or 0.0)
+            self.qty_input.setText(str(int(stock)) if stock == int(stock) else f"{stock:.2f}")
+        except Exception:
+            self.qty_input.setText("")
+
+    def _on_product_change(self, idx):
+        """Actualiza la vista previa cuando cambia el producto seleccionado."""
+        pid = self._current_selected_product_id()
+        
+        # Limpiar resultado anterior
+        self.result_frame.hide()
+        
+        if pid is None:
+            return
+
+    def _current_selected_product_id(self):
+        try:
+            data = self.product_cb.currentData()
+            return int(data) if data is not None else None
+        except Exception:
+            return None
+
+    def _product_by_id(self, pid):
+        try:
+            for p in self._products_list:
+                if int(p.get('id')) == int(pid):
+                    return p
+        except Exception:
+            pass
+        return None
+
+    def _on_calc_product_utility(self):
+        """Calcula y muestra la utilidad de forma profesional con ambos valores."""
+        pid = self._current_selected_product_id()
+        if pid is None:
+            QMessageBox.warning(self, "Calcular", "Seleccione un producto.")
+            return
+        
+        prod = self._product_by_id(pid)
+        if not prod:
+            QMessageBox.warning(self, "Calcular", "Producto no encontrado.")
+            return
+
+        # Obtener cantidad
+        qtxt = (self.qty_input.text() or "").strip()
+        try:
+            qty = float(qtxt) if qtxt != "" else float(prod.get('stock') or 0.0)
+        except Exception:
+            QMessageBox.warning(self, "Calcular", "Cantidad inválida.")
+            return
+        
+        if qty <= 0:
+            QMessageBox.warning(self, "Calcular", "Cantidad debe ser mayor a 0.")
+            return
+
+        # Precio override
+        op_txt = (self.override_price_input.text() or "").strip()
+        price_override_bs = None
+        if op_txt != "":
+            try:
+                price_override_bs = D(op_txt)
+            except Exception:
+                QMessageBox.warning(self, "Calcular", "Precio override inválido.")
+                return
+
+        rate_dec, _ = get_current_bcv_rate_safe()
+
+        # === CÁLCULO ===
+        # Obtener precio USD base
+        precio_usd_base = prod.get('precio_final')
+        
+        # Calcular precio de venta en Bs
+        sell_with_iva_bs = None
+        if price_override_bs is not None:
+            sell_with_iva_bs = price_override_bs
+        elif precio_usd_base and rate_dec:
+            ref = calcular_precio_venta_actual(float(precio_usd_base), float(rate_dec))
+            sell_with_iva_bs = ref.get('precio_bs_actual')
+
+        if sell_with_iva_bs is None:
+            QMessageBox.warning(self, "Calcular", 
+                "No se puede calcular el precio. Verifique que haya tasa BCV configurada.")
+            return
+
+        # Calcular sin IVA
+        try:
+            iva_pct = D(prod.get('iva') or 0)
+        except Exception:
+            iva_pct = D('0')
+            
+        sell_sin_iva_bs = None
+        if sell_with_iva_bs:
+            denom = (Decimal('1') + (iva_pct / Decimal('100')))
+            if denom != 0:
+                sell_sin_iva_bs = (sell_with_iva_bs / denom).quantize(DEC_2, rounding=ROUND_HALF_UP)
+
+        # Costo en Bs
+        try:
+            costo_usd = D(prod.get('costo_compra') if prod.get('costo_compra') not in (None, '') 
+                         else prod.get('costo') or 0)
+        except Exception:
+            costo_usd = D('0')
+            
+        moneda = (prod.get('moneda') or '').strip().lower()
+        if moneda in ('$', 'usd', 'dolar', 'dólar'):
+            cost_bs = (costo_usd * rate_dec).quantize(DEC_2, rounding=ROUND_HALF_UP) if rate_dec else None
+        else:
+            cost_bs = costo_usd.quantize(DEC_2, rounding=ROUND_HALF_UP)
+
+        if sell_sin_iva_bs is None or cost_bs is None:
+            QMessageBox.warning(self, "Calcular", "Datos insuficientes para calcular utilidad.")
+            return
+
+        # Cálculos finales
+        unit_profit = (sell_sin_iva_bs - cost_bs).quantize(DEC_2, rounding=ROUND_HALF_UP)
+        total_profit = (unit_profit * D(str(qty))).quantize(DEC_2, rounding=ROUND_HALF_UP)
+        
+        # === CÁLCULO DE AMBOS MARGENES ===
+        # Margen sobre venta (el tradicional)
+        try:
+            margin_pct = (unit_profit / sell_sin_iva_bs * 100) if sell_sin_iva_bs else 0
+        except:
+            margin_pct = 0
+            
+        # Ganancia sobre costo (mark-up) - NUEVO
+        try:
+            markup_pct = (unit_profit / cost_bs * 100) if cost_bs and cost_bs != 0 else 0
+        except:
+            markup_pct = 0
+
+        # === MOSTRAR RESULTADO ===
+        self.res_producto_lbl.setText(f"📦 Producto: <b>{prod.get('nombre') or prod.get('codigo')}</b>")
+        self.res_cantidad_lbl.setText(f"📊 Cantidad: <b>{qty:,.2f}</b> unidades")
+        
+        self.res_precio_con_iva_lbl.setText(
+            f"💰 Precio con IVA: <span style='color:#2D7A2D; font-weight:600;'>{format_bs_minimal(sell_with_iva_bs)}</span>")
+        self.res_precio_sin_iva_lbl.setText(
+            f"💵 Precio sin IVA: <span style='color:#555;'>{format_bs_minimal(sell_sin_iva_bs)}</span>")
+        
+        self.res_costo_lbl.setText(
+            f"📉 Costo unitario: <span style='color:#C62828;'>{format_bs_minimal(cost_bs)}</span>")
+        self.res_margen_lbl.setText(
+            f"📈 Margen sobre venta: <span style='color:#1565C0; font-weight:600;'>{float(margin_pct):.1f}%</span>")
+        
+        self.res_util_unidad_lbl.setText(f"Utilidad/unidad: {format_bs_minimal(unit_profit)}")
+        self.res_util_total_lbl.setText(f"UTILIDAD TOTAL: {format_bs_minimal(total_profit)}")
+        
+        # === NUEVO: MOSTRAR AMBOS VALORES EN LA SECCIÓN EXPLICATIVA ===
+        self.res_markup_lbl.setText(
+            f"<span style='color:#2E7D32;'>▲</span> Ganancia sobre costo: <b>{float(markup_pct):.1f}%</b>")
+        self.res_margin_detailed_lbl.setText(
+            f"<span style='color:#1565C0;'>●</span> Margen sobre venta: <b>{float(margin_pct):.1f}%</b>")
+        
+        self.result_frame.show()
+
+    # ==================== REFRESH Y DATOS ====================
+
+    def refresh(self):
+        try:
+            rate_dec, ts = get_current_bcv_rate_safe()
+            rate_f = float(rate_dec) if rate_dec is not None else None
+            self._last_known_rate = rate_dec
+
+            prods = self.db.listar_productos() or []
+            self._products_list = prods
+
+            total_fisico = D('0')
+            total_val_usd = D('0')
+            total_val_bs_calc = D('0')
+            utilidad_total_usd = D('0')
+            per_product_profits = []
+            count_products = 0
+            count_usd_reg = 0
+            count_bs_reg = 0
+            count_no_iva = 0
+            weighted_margin_numer = D('0')
+            weighted_margin_denom = D('0')
+
+            for p in prods:
+                count_products += 1
+                stock = D(str(p.get('stock') or 0))
+                total_fisico += stock
+
+                moneda_reg = (p.get('moneda') or '').strip().lower()
+                if moneda_reg in ('$', 'usd', 'dolar', 'dólar'):
+                    count_usd_reg += 1
+                else:
+                    count_bs_reg += 1
+
+                iva_pct = D(str(p.get('iva') or 0))
+                if iva_pct == 0:
+                    count_no_iva += 1
+
+                # Precio USD base
+                precio_usd_con_iva = p.get('precio_final')
+                if not precio_usd_con_iva:
+                    continue
+                
+                try:
+                    precio_usd_val = D(str(precio_usd_con_iva))
+                except:
+                    continue
+
+                # Calcular Bs actual
+                precio_bs_con_iva = None
+                if rate_dec:
+                    ref = calcular_precio_venta_actual(float(precio_usd_val), float(rate_dec))
+                    if ref.get('precio_bs_actual'):
+                        precio_bs_con_iva = D(str(ref.get('precio_bs_actual')))
+
+                # Precio sin IVA
+                denom_iva = (Decimal('1') + (iva_pct / Decimal('100')))
+                precio_usd_sin_iva = (precio_usd_val / denom_iva).quantize(DEC_USD, rounding=ROUND_HALF_UP) if denom_iva != 0 else D('0')
+
+                # Totales
+                total_val_usd += (precio_usd_val * stock)
+                if precio_bs_con_iva:
+                    total_val_bs_calc += (precio_bs_con_iva * stock)
+
+                # Costo y utilidad USD
+                try:
+                    costo_usd_val = D(str(p.get('costo_compra') if p.get('costo_compra') not in (None, '') 
+                                         else p.get('costo') or 0))
+                except:
+                    costo_usd_val = D('0')
+
+                unit_profit_usd = (precio_usd_sin_iva - costo_usd_val).quantize(DEC_USD, rounding=ROUND_HALF_UP)
+                total_profit_usd = (unit_profit_usd * stock).quantize(DEC_USD, rounding=ROUND_HALF_UP)
+                utilidad_total_usd += total_profit_usd
+
+                per_product_profits.append({
+                    'id': p.get('id'),
+                    'codigo': p.get('codigo'),
+                    'nombre': p.get('nombre'),
+                    'stock': float(stock),
+                    'unit_profit_usd': float(unit_profit_usd),
+                    'total_profit_usd': float(total_profit_usd),
+                    'sell_usd': float(precio_usd_val),
+                    'iva': float(iva_pct)
+                })
+
+                # Margen
+                try:
+                    margin_pct = (unit_profit_usd / precio_usd_sin_iva * 100) if precio_usd_sin_iva else 0
+                except:
+                    margin_pct = 0
+                weighted_margin_numer += (stock * precio_usd_sin_iva * D(str(margin_pct)))
+                weighted_margin_denom += (stock * precio_usd_sin_iva)
+
+            avg_margin_pct = D('0')
+            try:
+                if weighted_margin_denom and weighted_margin_denom != 0:
+                    avg_margin_pct = (weighted_margin_numer / weighted_margin_denom).quantize(DEC_2, rounding=ROUND_HALF_UP)
+            except:
+                pass
+
+            per_product_profits.sort(key=lambda x: x.get('total_profit_usd', 0), reverse=True)
+            top5 = per_product_profits[:5]
+
+            # Actualizar UI
+            self.tf_val.setText(f"{int(total_fisico):,}")
+            self.val_usd_lbl.setText(f"{float(total_val_usd):,.4f} $")
+            self.val_bs_lbl.setText(f"{float(total_val_bs_calc):,.2f} Bs" if total_val_bs_calc else "-- Bs")
+            self.util_amount_lbl.setText(f"{float(utilidad_total_usd):,.4f} $")
+
+            # Stats
+            self.lbl_count_products.setText(f"📦 {count_products}")
+            self.lbl_no_iva.setText(f"⚠️ {count_no_iva}")
+            self.lbl_by_usd.setText(f"💵 {count_usd_reg}")
+            self.lbl_by_bs.setText(f"💴 {count_bs_reg}")
+            self.lbl_tasa.setText(f"📈 {rate_f:,.2f}" if rate_f else "📈 N/D")
+            self.lbl_avg_margin.setText(f"📊 {float(avg_margin_pct):.1f}%")
+
+            # Combo productos
+            self.product_cb.blockSignals(True)
+            self.product_cb.clear()
+            for p in self._products_list:
+                name = f"{p.get('nombre') or ''} ({p.get('codigo') or ''})"
+                self.product_cb.addItem(name, p.get('id'))
+            self.product_cb.blockSignals(False)
+
+            # Tabla top 5
+            self.top_table.setRowCount(0)
+            for p in top5:
+                row = self.top_table.rowCount()
+                self.top_table.insertRow(row)
+                self.top_table.setItem(row, 0, QTableWidgetItem(str(p.get('id') or '')))
+                self.top_table.setItem(row, 1, QTableWidgetItem(str(p.get('codigo') or '')))
+                self.top_table.setItem(row, 2, QTableWidgetItem(str(p.get('nombre') or '')[:30]))
+                self.top_table.setItem(row, 3, QTableWidgetItem(f"{p.get('stock'):,.0f}"))
+                self.top_table.setItem(row, 4, QTableWidgetItem("Sí" if p.get('iva') else "No"))
+                item = QTableWidgetItem(f"{p.get('total_profit_usd'):,.4f} $")
+                item.setTextAlignment(Qt.AlignRight)
+                self.top_table.setItem(row, 5, item)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error al calcular inventario: {str(e)}")
+
+    def _on_export(self):
+        # Implementación de exportación (mantener existente o simplificar)
+        pass

@@ -1,0 +1,33 @@
+/* Clientes module QSS */
+QDialog#clientes_manager, QWidget#clientes_manager {
+    background: {BG};
+    color: {TEXT};
+}
+
+QDialog#clientes_manager QLabel, QWidget#clientes_manager QLabel {
+    color: {PRIMARY};
+}
+
+QDialog#clientes_manager QLineEdit, QWidget#clientes_manager QLineEdit {
+    background: {SURFACE};
+    border: 1px solid {BORDER};
+    border-radius: 10px;
+    padding: 6px;
+    color: {TEXT};
+}
+
+QDialog#clientes_manager QPushButton, QWidget#clientes_manager QPushButton {
+    background: {BTN_BG};
+    color: {SURFACE};
+    border-radius: 10px;
+    padding: 8px 12px;
+}
+
+QDialog#clientes_manager QPushButton:hover, QWidget#clientes_manager QPushButton:hover {
+    background: {BTN_HOVER};
+}
+
+QDialog#clientes_manager QTableWidget, QWidget#clientes_manager QTableWidget {
+    background: {SURFACE};
+    border: 1px solid {BORDER};
+}

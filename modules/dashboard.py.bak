@@ -1,0 +1,364 @@
+from PyQt5.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QFrame, QGridLayout, QMessageBox, QGraphicsDropShadowEffect
+)
+from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtGui import QColor
+from db_manager import DBManager
+from modules.entradas import EntradasWindow
+from modules.salidas import SalidasWindow
+from modules.productos import ProductosWindow
+from modules.reportes import ReportesWindow
+from modules.registro_general import RegistroGeneralWindow
+from modules.caducidad import CaducidadWindow
+
+
+class DashboardWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.db = DBManager()
+        self.setWindowTitle("Panel Principal - Minimarket ChiChi N-K, C.A J-5099900-7")
+        self.resize(1200, 720)
+
+        # ======= Main Widget =======
+        central = QWidget()
+        self.setCentralWidget(central)
+        central_layout = QHBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+
+        # ======= Sidebar =======
+        sidebar = QFrame()
+        sidebar.setFixedWidth(220)
+        sidebar.setStyleSheet("background-color: #8E6BE6; color: white;")
+        side_layout = QVBoxLayout(sidebar)
+        side_layout.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("MENÚ")
+        title.setStyleSheet("font-weight:bold; font-size:20px; color:white;")
+        side_layout.addWidget(title)
+        side_layout.addSpacing(10)
+
+        btn_graf = QPushButton("Gráficos por mes")
+        btn_graf.clicked.connect(self.open_graficos)
+        btn_cad = QPushButton("Tiempo de caducidad")
+        btn_cad.clicked.connect(self.open_caducidad)
+        btn_about = QPushButton("Acerca del sistema")
+        btn_about.clicked.connect(self.open_acerca)
+        btn_exit = QPushButton("Salir")
+        btn_exit.clicked.connect(self.cerrar_sesion)
+
+        for b in (btn_graf, btn_cad, btn_about, btn_exit):
+            b.setStyleSheet("background:transparent; color:white; text-align:left; padding:8px; font-size:15px; font-weight:600;")
+            b.setFlat(True)
+            side_layout.addWidget(b)
+
+        side_layout.addStretch()
+        central_layout.addWidget(sidebar)
+
+        # ======= Main Area =======
+        main_area = QWidget()
+        main_layout = QVBoxLayout(main_area)
+        main_layout.setContentsMargins(30, 20, 30, 20)
+        main_layout.setSpacing(20)
+
+        # ======= Header =======
+        company = QLabel("Minimarket ChiChi N-K, C.A.  J-5099900-7")
+        company.setAlignment(Qt.AlignCenter)
+        company.setStyleSheet("font-size:20px; color:#6B4ED6; font-weight:700;")
+        subtitle = QLabel("Control registro de Inventario")
+        subtitle.setAlignment(Qt.AlignCenter)
+        subtitle.setStyleSheet("font-size:16px; color:#6B4ED6;")
+
+        main_layout.addWidget(company)
+        main_layout.addWidget(subtitle)
+
+        # ======= Totals Frame =======
+        totals_frame = QFrame()
+        totals_layout = QHBoxLayout(totals_frame)
+        totals_layout.setSpacing(40)
+
+        # Total inventario físico
+        self.total_fisico_box = QFrame()
+        self.total_fisico_box.setStyleSheet("background:#F0E9FF; border-radius:10px; padding:12px;")
+        tf_layout = QVBoxLayout(self.total_fisico_box)
+        tf_label = QLabel("Total inventario físico")
+        tf_label.setStyleSheet("color:#5E3DB3; font-weight:600; font-size:16px;")
+        self.tf_value = QLabel("0")
+        self.tf_value.setStyleSheet("font-size:22px; font-weight:700; color:#333;")
+        self.tf_fecha = QLabel(f"Hasta el: {QDate.currentDate().toString('dd/MM/yyyy')}")
+        tf_layout.addWidget(tf_label)
+        tf_layout.addWidget(self.tf_value)
+        tf_layout.addWidget(self.tf_fecha)
+
+        # Total valorizado
+        self.total_val_box = QFrame()
+        self.total_val_box.setStyleSheet("background:#F0E9FF; border-radius:10px; padding:12px;")
+        tv_layout = QVBoxLayout(self.total_val_box)
+        tv_label = QLabel("Total inventario valorizado")
+        tv_label.setStyleSheet("color:#5E3DB3; font-weight:600; font-size:16px;")
+        self.tv_value = QLabel("0.00")
+        self.tv_value.setStyleSheet("font-size:22px; font-weight:700; color:#333;")
+        self.tv_fecha = QLabel(f"Hasta el: {QDate.currentDate().toString('dd/MM/yyyy')}")
+        tv_layout.addWidget(tv_label)
+        tv_layout.addWidget(self.tv_value)
+        tv_layout.addWidget(self.tv_fecha)
+
+        totals_layout.addWidget(self.total_fisico_box)
+        totals_layout.addWidget(self.total_val_box)
+
+        update_btn = QPushButton("Actualizar totales")
+        update_btn.clicked.connect(self.refresh_totals)
+        update_btn.setFixedWidth(180)
+        update_btn.setStyleSheet("background:#8E6BE6; color:white; font-weight:700; border-radius:10px; padding:8px; font-size:14px;")
+        totals_layout.addStretch()
+        totals_layout.addWidget(update_btn)
+
+        main_layout.addWidget(totals_frame)
+
+        # ======= Main Content =======
+        content_frame = QFrame()
+        content_layout = QHBoxLayout(content_frame)
+        content_layout.setSpacing(80)
+        content_layout.setAlignment(Qt.AlignTop)
+
+        # ======= SECCIÓN MENÚ =======
+        menu_section = QVBoxLayout()
+        menu_section.setAlignment(Qt.AlignTop)
+        menu_section.setSpacing(14)
+
+        menu_title_container = QVBoxLayout()
+        menu_title_container.setAlignment(Qt.AlignCenter)
+
+        menu_title = QLabel("Menú")
+        menu_title.setAlignment(Qt.AlignCenter)
+        menu_title.setStyleSheet("""
+            color:#6B4ED6;
+            font-family:'Segoe UI Semibold';
+            font-size:24px;
+            font-weight:800;
+            letter-spacing:1px;
+            margin-bottom:2px;
+        """)
+
+        shadow_menu = QGraphicsDropShadowEffect()
+        shadow_menu.setBlurRadius(8)
+        shadow_menu.setColor(QColor(90, 70, 160, 150))
+        shadow_menu.setOffset(1, 1)
+        menu_title.setGraphicsEffect(shadow_menu)
+
+        menu_line = QFrame()
+        menu_line.setFixedHeight(3)
+        menu_line.setStyleSheet("""
+            background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:0,
+                stop:0 #B6A0F7, stop:1 #6B4ED6
+            );
+            border-radius:2px;
+        """)
+
+        menu_title_container.addWidget(menu_title)
+        menu_title_container.addWidget(menu_line)
+
+        # Botones Menú
+        menu_grid = QGridLayout()
+        menu_grid.setHorizontalSpacing(35)
+        menu_grid.setVerticalSpacing(30)
+        menu_grid.setAlignment(Qt.AlignCenter)
+
+        menu_buttons = [
+            ("Ingresar Producto", self.open_productos),
+            ("Registro General", self.open_reportes),
+            ("Registro de Entradas", self.open_entradas),
+            ("Registro de Salidas", self.open_salidas)
+        ]
+
+        row, col = 0, 0
+        for label, fn in menu_buttons:
+            btn = QPushButton(label)
+            btn.clicked.connect(fn)
+            btn.setFixedSize(210, 95)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background:#D9CBFF;
+                    border-radius:14px;
+                    font-weight:700;
+                    font-size:17px;
+                    color:#4A3BA5;
+                }
+                QPushButton:hover {
+                    background:#C8B5FF;
+                }
+            """)
+            menu_grid.addWidget(btn, row, col, Qt.AlignCenter)
+            col += 1
+            if col > 1:
+                col = 0
+                row += 1
+
+        menu_section.addLayout(menu_title_container)
+        menu_section.addLayout(menu_grid)
+        content_layout.addLayout(menu_section, 1)
+
+        # ======= SECCIÓN DEPARTAMENTOS =======
+        dept_section = QVBoxLayout()
+        dept_section.setAlignment(Qt.AlignTop)
+        dept_section.setSpacing(14)
+
+        dept_title_container = QVBoxLayout()
+        dept_title_container.setAlignment(Qt.AlignCenter)
+
+        dept_title = QLabel("Departamentos")
+        dept_title.setAlignment(Qt.AlignCenter)
+        dept_title.setStyleSheet("""
+            color:#6B4ED6;
+            font-family:'Segoe UI Semibold';
+            font-size:24px;
+            font-weight:800;
+            letter-spacing:1px;
+            margin-bottom:2px;
+        """)
+
+        shadow_dept = QGraphicsDropShadowEffect()
+        shadow_dept.setBlurRadius(8)
+        shadow_dept.setColor(QColor(90, 70, 160, 150))
+        shadow_dept.setOffset(1, 1)
+        dept_title.setGraphicsEffect(shadow_dept)
+
+        dept_line = QFrame()
+        dept_line.setFixedHeight(3)
+        dept_line.setStyleSheet("""
+            background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:0,
+                stop:0 #B6A0F7, stop:1 #6B4ED6
+            );
+            border-radius:2px;
+        """)
+
+        dept_title_container.addWidget(dept_title)
+        dept_title_container.addWidget(dept_line)
+
+        dept_grid = QGridLayout()
+        dept_grid.setHorizontalSpacing(40)
+        dept_grid.setVerticalSpacing(30)
+        dept_grid.setAlignment(Qt.AlignCenter)
+
+        departamentos = ["Productos de Limpieza", "Confitería", "Lácteos", "Aseo Personal", "Víveres", "Bebidas"]
+
+        r, c = 0, 0
+        for d in departamentos:
+            dbtn = QPushButton(d)
+            dbtn.setFixedSize(180, 85)
+            dbtn.clicked.connect(lambda checked, dep=d: self.open_reporte_filtrado(dep))
+            dbtn.setStyleSheet("""
+                QPushButton {
+                    background:#D9CBFF;
+                    border-radius:14px;
+                    font-weight:700;
+                    font-size:16px;
+                    color:#4A3BA5;
+                }
+                QPushButton:hover {
+                    background:#C8B5FF;
+                }
+            """)
+            dept_grid.addWidget(dbtn, r, c, Qt.AlignCenter)
+            c += 1
+            if c > 2:
+                c = 0
+                r += 1
+
+        dept_section.addLayout(dept_title_container)
+        dept_section.addLayout(dept_grid)
+        content_layout.addLayout(dept_section, 1)
+
+        main_layout.addSpacing(10)
+        main_layout.addWidget(content_frame, alignment=Qt.AlignTop)
+        main_layout.addStretch()
+
+        central_layout.addWidget(main_area)
+        self.refresh_totals()
+
+    # ======= Funciones =======
+    def open_productos(self):
+        dlg = ProductosWindow(self)
+        dlg.exec_()
+        self.refresh_totals()
+
+    def open_entradas(self):
+        dlg = EntradasWindow(self)
+        dlg.exec_()
+        self.refresh_totals()
+
+    def open_salidas(self):
+        dlg = SalidasWindow(self)
+        dlg.exec_()
+        self.refresh_totals()
+
+    def open_registro_general(self):
+        dlg = RegistroGeneralWindow(self)
+        dlg.exec_()
+
+    def open_reportes(self):
+        dlg = ReportesWindow(self)
+        dlg.exec_()
+
+    def open_caducidad(self):
+        dlg = CaducidadWindow(self)
+        dlg.exec_()
+
+    def open_reporte_filtrado(self, departamento):
+        try:
+            rows = self.db.fetchall(
+                "SELECT id, codigo_producto, producto_nombre, departamento, tipo, cantidad, costo, fecha, motivo, imagen "
+                "FROM movimientos WHERE departamento = ? ORDER BY fecha DESC", (departamento,)
+            )
+            dlg = ReportesWindow(self)
+            dlg.table.setRowCount(0)
+            for _ in rows:
+                row = dlg.table.rowCount()
+                dlg.table.insertRow(row)
+            dlg.cargar_tabla()
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"No se pudo abrir reporte filtrado: {e}")
+
+    def on_department_clicked(self, departamento):
+        try:
+            row = self.db.fetchone("SELECT COUNT(*) as cnt FROM productos WHERE departamento = ?", (departamento,))
+            cnt = int(row.get('cnt') or 0) if row else 0
+            QMessageBox.information(self, "Filtro aplicado", f"Mostrando registros del departamento: {departamento}\nTotal productos: {cnt}")
+            dlg = RegistroGeneralWindow(self, departamento=departamento)
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"No se pudo abrir reporte filtrado: {e}")
+
+    def open_graficos(self):
+        QMessageBox.information(self, "Gráficos", "Gráficos por mes - función en desarrollo.")
+
+    def open_acerca(self):
+        QMessageBox.information(self, "Acerca", "Minimarket ChiChi N-K, C.A.\nVersión: 1.0\nDesarrollado por: Tu equipo")
+
+    def cerrar_sesion(self):
+        self.close()
+
+    # ======= Totales =======
+    def refresh_totals(self):
+        try:
+            total = 0
+            val = 0.0
+            if hasattr(self, 'db') and hasattr(self.db, 'get_total_inventario_fisico'):
+                try:
+                    total = self.db.get_total_inventario_fisico()
+                except Exception:
+                    total = 0
+            if hasattr(self, 'db') and hasattr(self.db, 'get_total_inventario_valorizado'):
+                try:
+                    val = self.db.get_total_inventario_valorizado()
+                except Exception:
+                    val = 0.0
+            self.tf_value.setText(str(total))
+            self.tv_value.setText(f"{val:.2f}")
+            self.tf_fecha.setText(f"Hasta el: {QDate.currentDate().toString('dd/MM/yyyy')}")
+            self.tv_fecha.setText(f"Hasta el: {QDate.currentDate().toString('dd/MM/yyyy')}")
+        except Exception as e:
+            print("Error refreshing totals:", e)

@@ -1,0 +1,12 @@
+[
+  "db_manager.py",
+  "main.py",
+  "modules/caducidad.py",
+  "modules/dashboard.py",
+  "modules/entradas.py",
+  "modules/login.py",
+  "modules/productos.py",
+  "modules/reportes.py",
+  "modules/salidas.py",
+  "styles.qss"
+]

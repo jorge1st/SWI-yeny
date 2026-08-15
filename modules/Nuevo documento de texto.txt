@@ -1,0 +1,73 @@
+# modules/pricing.py
+"""
+Helper de precios seguro (Decimal) para:
+ - calcular desde USD → obtener precio_ref_usd y precio_final_bs
+ - calcular desde Bs  → obtener precio_ref_usd (división por tasa) y precio_final_bs
+Reglas:
+ - Precio final aplica IVA y luego ganancia: precio_final = costo * (1 + iva/100) * (1 + gan/100)
+ - Guardamos referencia en USD (precio_ref_usd) con 4 decimales
+ - Guardamos precio_final_bs con 2 decimales
+"""
+from decimal import Decimal, ROUND_HALF_UP, getcontext
+from typing import Optional, Dict
+
+getcontext().prec = 28  # suficiente precisión para dinero y conversiones
+
+def D(v) -> Decimal:
+    try:
+        return Decimal(str(v))
+    except Exception:
+        return Decimal('0')
+
+def calcular_desde_usd(costo_usd, iva_pct, gan_pct, tasa_bcv: Optional[float]) -> Dict[str, Optional[Decimal]]:
+    costo = D(costo_usd)
+    iva = D(iva_pct)
+    gan = D(gan_pct)
+
+    iva_f = (Decimal('1') + (iva / Decimal('100')))
+    gan_f = (Decimal('1') + (gan / Decimal('100')))
+
+    precio_final_usd = (costo * iva_f * gan_f).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+
+    bcv = D(tasa_bcv) if tasa_bcv is not None else None
+    precio_final_bs = None
+    if bcv and bcv != Decimal('0'):
+        precio_final_bs = (precio_final_usd * bcv).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    iva_monto_usd = (costo * (iva / Decimal('100'))).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+    ganancia_monto_usd = (precio_final_usd - (costo * iva_f)).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+
+    return {
+        "precio_ref_usd": precio_final_usd,
+        "precio_final_bs": precio_final_bs,
+        "bcv_tasa": bcv,
+        "iva_monto_usd": iva_monto_usd,
+        "ganancia_monto_usd": ganancia_monto_usd
+    }
+
+def calcular_desde_bs(costo_bs, iva_pct, gan_pct, tasa_bcv: Optional[float]) -> Dict[str, Optional[Decimal]]:
+    costo = D(costo_bs)
+    iva = D(iva_pct)
+    gan = D(gan_pct)
+
+    iva_f = (Decimal('1') + (iva / Decimal('100')))
+    gan_f = (Decimal('1') + (gan / Decimal('100')))
+
+    # precio final en Bs (aplicar IVA y ganancia)
+    precio_final_bs = (costo * iva_f * gan_f).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    bcv = D(tasa_bcv) if tasa_bcv is not None else None
+    precio_ref_usd = None
+    if bcv and bcv != Decimal('0'):
+        precio_ref_usd = (precio_final_bs / bcv).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+
+    iva_monto_bs = (costo * (iva / Decimal('100'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    ganancia_monto_bs = (precio_final_bs - (costo * iva_f)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    return {
+        "precio_final_bs": precio_final_bs,
+        "precio_ref_usd": precio_ref_usd,
+        "bcv_tasa": bcv,
+        "iva_monto_bs": iva_monto_bs,
+        "ganancia_monto_bs": ganancia_monto_bs
+    }

@@ -1,0 +1,241 @@
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QFormLayout, QLineEdit, QPushButton,
+    QComboBox, QHBoxLayout, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog, QDateEdit, QWidget, QSpinBox
+)
+from PyQt5.QtCore import Qt, QDate
+from db_manager import DBManager
+import os, shutil, datetime
+
+class ProductosWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.db = DBManager()
+        self.setWindowTitle("Registro de Productos")
+        self.resize(900, 650)
+        self.setStyleSheet("""QDialog { background-color: #F5F3FB; } QLabel { font-weight: bold; color: #5E3DB3; }""")
+
+        main = QVBoxLayout(self)
+
+        form_frame = QWidget()
+        form_layout = QFormLayout(form_frame)
+        form_layout.setLabelAlignment(Qt.AlignRight)
+
+        # Fields
+        self.codigo_edit = QLineEdit()
+        self.codigo_edit.setReadOnly(True)
+        self.codigo_edit.setPlaceholderText("Automático")
+
+        self.nombre_edit = QLineEdit()
+        self.departamento_cb = QComboBox()
+        # departamentos fijos tal como solicitaste
+        self.departamento_cb.addItems(["Abarrotes","Lácteos","Limpieza","Bebidas","Carnes","Verduras"])
+
+        self.stock_spin = QSpinBox()
+        self.stock_spin.setMinimum(0)
+        self.stock_spin.setMaximum(1000000)
+        self.costo_edit = QLineEdit()
+        self.costo_edit.setPlaceholderText("0.00")
+
+        self.fecha_registro = QDateEdit()
+        self.fecha_registro.setCalendarPopup(True)
+        self.fecha_registro.setDate(QDate.currentDate())
+
+        self.fecha_caducidad = QDateEdit()
+        self.fecha_caducidad.setCalendarPopup(True)
+        self.fecha_caducidad.setDate(QDate.currentDate())
+
+        # Image
+        self.img_btn = QPushButton("Cargar imagen")
+        self.img_btn.clicked.connect(self.seleccionar_imagen)
+        self.img_path = None
+        self.img_preview = QLabel("")
+        self.img_preview.setFixedSize(160,160)
+        self.img_preview.setStyleSheet("background-color:#E7E5FA; border-radius:6px;")
+
+        # Add fields to form
+        form_layout.addRow(QLabel("Código:"), self.codigo_edit)
+        form_layout.addRow(QLabel("Nombre:"), self.nombre_edit)
+        form_layout.addRow(QLabel("Departamento:"), self.departamento_cb)
+        form_layout.addRow(QLabel("Stock inicial:"), self.stock_spin)
+        form_layout.addRow(QLabel("Costo unitario:"), self.costo_edit)
+        form_layout.addRow(QLabel("Fecha registro:"), self.fecha_registro)
+        form_layout.addRow(QLabel("Fecha caducidad:"), self.fecha_caducidad)
+        form_layout.addRow(QLabel("Imagen:"), self.img_btn)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self.guardar_btn = QPushButton("Guardar")
+        self.guardar_btn.clicked.connect(self.guardar_producto)
+        self.nuevo_btn = QPushButton("Nuevo")
+        self.nuevo_btn.clicked.connect(self.limpiar_form)
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.nuevo_btn)
+        btn_layout.addWidget(self.guardar_btn)
+
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(8)
+        self.table.setHorizontalHeaderLabels(["ID","Código","Nombre","Departamento","Stock","Costo","Fecha registro","Fecha caducidad"])
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.cellClicked.connect(self.seleccionar_fila)
+
+        # Layout organization
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(form_frame, 2)
+        right_col = QVBoxLayout()
+        right_col.addWidget(self.img_preview)
+        right_col.addLayout(btn_layout)
+        right_col.addStretch()
+        top_layout.addLayout(right_col, 1)
+
+        main.addLayout(top_layout)
+        main.addWidget(self.table)
+
+        # Initialize
+        self.limpiar_form()
+        self.cargar_tabla()
+
+    def seleccionar_imagen(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Seleccionar imagen', '', 'Images (*.png *.jpg *.jpeg *.bmp)')
+        if path:
+            try:
+                os.makedirs('img', exist_ok=True)
+                dest = os.path.join('img', f"{os.path.basename(path)}")
+                # ensure unique filename to avoid overwrite: prepend timestamp
+                basename = os.path.basename(path)
+                name, ext = os.path.splitext(basename)
+                ts = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                dest = os.path.join('img', f"{name}_{ts}{ext}")
+                shutil.copy(path, dest)
+                self.img_path = dest
+                from PyQt5.QtGui import QPixmap
+                pix = QPixmap(dest).scaled(self.img_preview.width(), self.img_preview.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.img_preview.setPixmap(pix)
+            except Exception as e:
+                QMessageBox.warning(self, 'Error', f'No se pudo copiar la imagen: {e}')
+
+    def generar_codigo(self):
+        # generate PRD-0001 style based on max id in productos table
+        try:
+            rows = self.db.fetchall("SELECT MAX(id) as maxid FROM productos") or []
+            maxid = 0
+            if rows and isinstance(rows, list):
+                r = rows[0]
+                maxid = r.get('maxid') or 0
+            next_id = int(maxid) + 1
+        except Exception:
+            next_id = 1
+        return f"PRD-{next_id:04d}"
+
+    def limpiar_form(self):
+        self.codigo_edit.clear()
+        self.nombre_edit.clear()
+        self.departamento_cb.setCurrentIndex(0)
+        self.stock_spin.setValue(0)
+        self.costo_edit.clear()
+        self.fecha_registro.setDate(QDate.currentDate())
+        self.fecha_caducidad.setDate(QDate.currentDate())
+        self.img_preview.clear()
+        self.img_path = None
+        # set next code preview
+        try:
+            self.codigo_edit.setText(self.generar_codigo())
+        except Exception:
+            self.codigo_edit.setText("PRD-0000")
+
+    def validar(self):
+        if not self.nombre_edit.text().strip():
+            QMessageBox.warning(self, 'Atención', 'El nombre es obligatorio')
+            return False
+        try:
+            if self.costo_edit.text().strip():
+                float(self.costo_edit.text())
+        except ValueError:
+            QMessageBox.warning(self, 'Atención', 'Costo inválido')
+            return False
+        return True
+
+    def guardar_producto(self):
+        if not self.validar():
+            return
+        codigo = self.codigo_edit.text() or self.generar_codigo()
+        nombre = self.nombre_edit.text().strip()
+        departamento = self.departamento_cb.currentText()
+        stock = int(self.stock_spin.value())
+        costo = float(self.costo_edit.text()) if self.costo_edit.text().strip() else 0.0
+        fecha_reg = self.fecha_registro.date().toString("yyyy-MM-dd")
+        fecha_cad = self.fecha_caducidad.date().toString("yyyy-MM-dd") if self.fecha_caducidad.date() else None
+        imagen = self.img_path
+        try:
+            # use db manager insert_producto if available
+            if hasattr(self.db, 'insert_producto'):
+                self.db.insert_producto(codigo, nombre, "", departamento, stock, costo, imagen, fecha_cad)
+            else:
+                cur = self.db.conn.cursor()
+                cur.execute("INSERT INTO productos (codigo,nombre,descripcion,departamento,stock,costo,imagen,fecha_registro,fecha_caducidad) VALUES (?,?,?,?,?,?,?,?,?)",
+                            (codigo, nombre, "", departamento, stock, costo, imagen, fecha_reg, fecha_cad))
+                self.db.conn.commit()
+            QMessageBox.information(self, 'Éxito', f'Producto {codigo} guardado')
+            self.limpiar_form()
+            self.cargar_tabla()
+        except Exception as e:
+            QMessageBox.critical(self, 'Error', f'No se pudo guardar: {e}')
+
+    def cargar_tabla(self):
+        self.table.setRowCount(0)
+        rows = self.db.listar_productos()
+        for r in rows:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(str(r.get('id',''))))
+            self.table.setItem(row, 1, QTableWidgetItem(str(r.get('codigo',''))))
+            self.table.setItem(row, 2, QTableWidgetItem(str(r.get('nombre',''))))
+            self.table.setItem(row, 3, QTableWidgetItem(str(r.get('departamento',''))))
+            self.table.setItem(row, 4, QTableWidgetItem(str(r.get('stock',''))))
+            self.table.setItem(row, 5, QTableWidgetItem(str(r.get('costo',''))))
+            self.table.setItem(row, 6, QTableWidgetItem(str(r.get('fecha_registro',''))))
+            self.table.setItem(row, 7, QTableWidgetItem(str(r.get('fecha_caducidad',''))))
+
+    def seleccionar_fila(self, row, col):
+        try:
+            pid = int(self.table.item(row,0).text())
+        except Exception:
+            return
+        prod = self.db.fetchone("SELECT * FROM productos WHERE id = ?", (pid,))
+        if not prod:
+            return
+        # populate form with selected
+        self.codigo_edit.setText(prod.get('codigo',''))
+        self.nombre_edit.setText(prod.get('nombre',''))
+        try:
+            idx = self.departamento_cb.findText(prod.get('departamento',''))
+            if idx>=0:
+                self.departamento_cb.setCurrentIndex(idx)
+        except:
+            pass
+        try:
+            self.stock_spin.setValue(int(prod.get('stock') or 0))
+        except:
+            self.stock_spin.setValue(0)
+        try:
+            self.costo_edit.setText(str(prod.get('costo') or 0.0))
+        except:
+            self.costo_edit.setText('0.0')
+        try:
+            if prod.get('fecha_registro'):
+                d = QDate.fromString(prod.get('fecha_registro')[:10],"yyyy-MM-dd")
+                self.fecha_registro.setDate(d)
+            if prod.get('fecha_caducidad'):
+                d2 = QDate.fromString(prod.get('fecha_caducidad')[:10],"yyyy-MM-dd")
+                self.fecha_caducidad.setDate(d2)
+        except:
+            pass
+        # image
+        if prod.get('imagen'):
+            p = prod.get('imagen')
+            if os.path.exists(p):
+                from PyQt5.QtGui import QPixmap
+                pix = QPixmap(p).scaled(self.img_preview.width(), self.img_preview.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.img_preview.setPixmap(pix)
+                self.img_path = p
+

@@ -1,0 +1,33 @@
+/* Login module QSS */
+QDialog#login {
+    background-color: {SURFACE};
+    border: 3px solid {PRIMARY_LIGHT};
+    border-radius: 15px;
+}
+
+QDialog#login QLabel {
+    font-family: 'Segoe UI';
+    font-size: 18px;
+    font-weight: bold;
+    color: {PRIMARY};
+}
+
+QDialog#login QLineEdit {
+    border: 2px solid {BORDER};
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 14px;
+}
+
+QDialog#login QPushButton {
+    background-color: {PRIMARY};
+    color: white;
+    font-size: 15px;
+    font-weight: bold;
+    border-radius: 10px;
+    padding: 8px;
+}
+
+QDialog#login QPushButton:hover {
+    background-color: {BTN_HOVER};
+}
